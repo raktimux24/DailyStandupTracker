@@ -239,7 +239,7 @@ export const Dashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900" style={backgroundPattern}>
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow">
+      <div className="bg-white/80 dark:bg-gray-800/80 shadow backdrop-blur-sm" style={backgroundPattern}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-3">
@@ -256,12 +256,18 @@ export const Dashboard: React.FC = () => {
 
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center">
-            <Button onClick={() => setIsNewModalOpen(true)} className="flex items-center">
-              <Plus className="w-5 h-5 mr-2" />
-              New Standup
-            </Button>
-          </div>
+          <StandupFilter
+            onSearchChange={setSearchQuery}
+            onUserFilterChange={setUserFilter}
+            searchQuery={searchQuery}
+            userFilter={userFilter}
+            users={users}
+          />
+          
+          <Button onClick={() => setIsNewModalOpen(true)} className="flex items-center">
+            <Plus className="w-5 h-5 mr-2" />
+            New Standup
+          </Button>
         </div>
 
         {error && (
@@ -269,12 +275,6 @@ export const Dashboard: React.FC = () => {
             <p className="text-sm text-red-700 dark:text-red-200">{error}</p>
           </div>
         )}
-
-        <StandupFilter
-          onSearchChange={setSearchQuery}
-          onUserFilterChange={setUserFilter}
-          users={users}
-        />
 
         {loading ? (
           <div className="text-center py-12">
