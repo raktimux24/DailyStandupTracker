@@ -23,17 +23,26 @@ export const StandupCard: React.FC<StandupCardProps> = ({ standup, onEdit, onDel
       style={theme === 'dark' ? patterns.cardDark : patterns.card}
     >
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center space-x-2">
-          <Calendar className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-          <span className="text-sm text-gray-600 dark:text-gray-300">
-            {format(standup.date, 'MMM dd, yyyy')}
-          </span>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <Calendar className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+            <span className="text-sm text-gray-600 dark:text-gray-300">
+              {format(standup.date, 'MMM dd, yyyy')}
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 flex items-center space-x-1">
+              <span>{standup.userName}</span>
+              {standup.mentorName && (
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  (Mentor: {standup.mentorName})
+                </span>
+              )}
+            </div>
+          </div>
         </div>
         
         <div className="flex items-center space-x-2">
-          <div className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
-            {standup.userName}
-          </div>
           <div className="relative" ref={menuRef}>
             <Button
               variant="secondary"

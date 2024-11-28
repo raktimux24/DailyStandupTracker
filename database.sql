@@ -39,16 +39,30 @@ CREATE TRIGGER update_standups_updated_at
     FOR EACH ROW
     EXECUTE PROCEDURE handle_updated_at();
 
--- Create RLS policies for profiles
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+-- Check existing policies
+select *
+from pg_policies
+where tablename = 'profiles';
 
-CREATE POLICY "Users can view their own profile"
-    ON profiles FOR SELECT
-    USING (auth.uid() = id);
+-- Drop existing policies if needed
+drop policy if exists "Users can insert their own profile" on profiles;
+drop policy if exists "Users can update own profile" on profiles;
+drop policy if exists "Profiles are viewable by everyone" on profiles;
 
-CREATE POLICY "Users can update their own profile"
-    ON profiles FOR UPDATE
-    USING (auth.uid() = id);
+-- Create new policies
+create policy "Profiles are viewable by everyone"
+on profiles for select
+using (true);
+
+create policy "Users can insert their own profile"
+on profiles for insert
+with check (auth.uid() = id);
+
+create policy "Users can update own profile"
+on profiles for update using (auth.uid() = id);
+
+-- Enable RLS if not already enabled
+alter table profiles enable row level security;
 
 -- Create RLS policies for standups
 ALTER TABLE standups ENABLE ROW LEVEL SECURITY;

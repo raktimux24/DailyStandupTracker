@@ -65,21 +65,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Create profile record
       if (data.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([
-            {
+        // Only try to create profile for the current user
+        if (data.user.id === (await supabase.auth.getUser()).data.user?.id) {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
               id: data.user.id,
               name: credentials.name,
               email: credentials.email,
-            },
-          ]);
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
 
-        if (profileError) throw profileError;
+          if (profileError && profileError.code !== '23505') { // Ignore duplicate key errors
+            console.error('Error creating profile:', profileError);
+            throw profileError;
+          }
+        }
       }
 
       setError(null);
     } catch (err) {
+      console.error('Signup error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred during signup');
     }
   };

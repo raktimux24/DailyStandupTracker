@@ -3,6 +3,7 @@ export interface Standup {
   date: Date;
   userId: string;
   userName: string;
+  mentorName?: string;
   yesterday: string;
   today: string;
   blockers: string;

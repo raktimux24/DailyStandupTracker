@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Lock, User, ClipboardList } from 'lucide-react';
+import { Mail, Lock, User, ClipboardList, UserPlus } from 'lucide-react';
 import { Button } from './Button';
 import { useAuth } from '../contexts/AuthContext';
 import { SignUpCredentials } from '../types/auth';

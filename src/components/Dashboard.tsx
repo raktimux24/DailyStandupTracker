@@ -31,61 +31,93 @@ export const Dashboard: React.FC = () => {
   useEffect(() => {
     const loadStandups = async () => {
       try {
-        // First, ensure profile exists
-        if (user) {
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', user.id)
-            .single();
-
-          if (profileError && profileError.code === 'PGRST116') {
-            // Profile doesn't exist, create it
-            const { error: insertError } = await supabase
-              .from('profiles')
-              .insert([
-                {
-                  id: user.id,
-                  name: user.user_metadata.name || user.email?.split('@')[0] || 'Anonymous',
-                  email: user.email || '',
-                },
-              ]);
-
-            if (insertError) throw insertError;
-          } else if (profileError) {
-            throw profileError;
-          }
-        }
-
-        // Now load standups
-        const { data, error: fetchError } = await supabase
+        // Load standups with user profiles
+        const { data: standupData, error: fetchError } = await supabase
           .from('standups')
           .select(`
             id,
+            created_at,
+            user_id,
             yesterday,
             today,
             blockers,
-            comments,
-            created_at,
-            user_id,
-            profiles!standups_user_id_fkey (
-              name
-            )
-          `)
-          .order('created_at', { ascending: false });
+            comments
+          `);
 
-        if (fetchError) throw fetchError;
+        if (fetchError) {
+          console.error('Error fetching standups:', fetchError);
+          throw fetchError;
+        }
 
-        const formattedStandups: Standup[] = data.map(item => ({
-          id: item.id,
-          date: new Date(item.created_at),
-          userId: item.user_id,
-          userName: item.profiles.name,
-          yesterday: item.yesterday,
-          today: item.today,
-          blockers: item.blockers || '',
-          comments: item.comments || ''
-        }));
+        // Get all unique user IDs from standups
+        const userIds = [...new Set(standupData.map(standup => standup.user_id))];
+        
+        // Fetch existing profiles
+        const { data: userProfiles, error: userProfileError } = await supabase
+          .from('profiles')
+          .select('id, name, email')
+          .in('id', userIds);
+
+        if (userProfileError) {
+          console.error('Error fetching user profiles:', userProfileError);
+          throw userProfileError;
+        }
+
+        // Create a map of existing profiles
+        const existingProfiles = new Map(
+          userProfiles?.map(profile => [profile.id, profile]) || []
+        );
+
+        // If current user doesn't have a profile, create it
+        if (user && !existingProfiles.has(user.id)) {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              name: user.user_metadata?.name || user.email?.split('@')[0] || 'Anonymous',
+              email: user.email || '',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+
+          if (profileError && profileError.code !== '23505') {
+            console.error('Error creating current user profile:', profileError);
+          } else {
+            // Add the new profile to our map
+            existingProfiles.set(user.id, {
+              id: user.id,
+              name: user.user_metadata?.name || user.email?.split('@')[0] || 'Anonymous',
+              email: user.email || ''
+            });
+          }
+        }
+
+        // Create a map for all user IDs, using placeholder names for missing profiles
+        const userProfileMap = new Map(
+          userIds.map(userId => [
+            userId,
+            existingProfiles.get(userId) || {
+              id: userId,
+              name: `User ${userId.slice(0, 8)}`,
+              email: ''
+            }
+          ])
+        );
+
+        const formattedStandups: Standup[] = standupData.map(item => {
+          const userProfile = userProfileMap.get(item.user_id);
+          
+          return {
+            id: item.id,
+            date: new Date(item.created_at),
+            userId: item.user_id,
+            userName: userProfile?.name || `User ${item.user_id.slice(0, 8)}`,
+            yesterday: item.yesterday || '',
+            today: item.today || '',
+            blockers: item.blockers || '',
+            comments: item.comments || ''
+          };
+        });
 
         setStandups(formattedStandups);
         setError(null);
@@ -147,10 +179,7 @@ export const Dashboard: React.FC = () => {
           blockers,
           comments,
           created_at,
-          user_id,
-          profiles!standups_user_id_fkey (
-            name
-          )
+          user_id
         `)
         .single();
 
@@ -160,7 +189,7 @@ export const Dashboard: React.FC = () => {
         id: insertedData.id,
         date: new Date(insertedData.created_at),
         userId: insertedData.user_id,
-        userName: insertedData.profiles.name,
+        userName: user?.user_metadata.name || user.email?.split('@')[0] || 'Anonymous',
         yesterday: insertedData.yesterday,
         today: insertedData.today,
         blockers: insertedData.blockers || '',
