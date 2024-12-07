@@ -19,7 +19,7 @@ export const StandupCard: React.FC<StandupCardProps> = ({ standup, onEdit, onDel
 
   return (
     <div 
-      className="rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-gray-200 dark:border-gray-700" 
+      className="rounded-lg p-6 transition-shadow bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 dark:shadow-md dark:hover:shadow-lg" 
       style={theme === 'dark' ? patterns.cardDark : patterns.card}
     >
       <div className="flex items-center justify-between mb-4">

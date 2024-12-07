@@ -11,9 +11,9 @@ import { ClipboardList, Plus } from 'lucide-react';
 import { Standup } from '../types/standup';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { patterns } from '../styles/patterns';
 import { useTheme } from '../contexts/ThemeContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { StatsCards } from './StatsCards';
 
 export const Dashboard: React.FC = () => {
   useDocumentTitle('Daily Standup Tracker');
@@ -21,11 +21,16 @@ export const Dashboard: React.FC = () => {
   const { theme } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [userFilter, setUserFilter] = useState('');
+  const [dateRange, setDateRange] = useState({
+    startDate: '',
+    endDate: ''
+  });
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [editingStandup, setEditingStandup] = useState<Standup | null>(null);
   const [standups, setStandups] = useState<Standup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [standupStats, setStandupStats] = useState<Array<{ user_id: string; total_standups: number }>>([]);
 
   // Load standups from Supabase
   useEffect(() => {
@@ -134,6 +139,28 @@ export const Dashboard: React.FC = () => {
     }
   }, [user]);
 
+  // Load standup stats
+  useEffect(() => {
+    const loadStandupStats = async () => {
+      try {
+        const { data: statsData, error: statsError } = await supabase
+          .from('standup_stats')
+          .select('user_id, total_standups');
+
+        if (statsError) {
+          console.error('Error fetching standup stats:', statsError);
+          return;
+        }
+
+        setStandupStats(statsData || []);
+      } catch (err) {
+        console.error('Error in loadStandupStats:', err);
+      }
+    };
+
+    loadStandupStats();
+  }, []);
+
   const users = useMemo(() => {
     const uniqueUsers = new Map();
     standups.forEach(standup => {
@@ -145,21 +172,36 @@ export const Dashboard: React.FC = () => {
     return Array.from(uniqueUsers.values());
   }, [standups]);
 
+  const userProfileMap = useMemo(() => {
+    return new Map(
+      users.map(user => [
+        user.id,
+        { name: user.name || 'Anonymous', email: user.email || '' }
+      ])
+    );
+  }, [users]);
+
+  // Filter standups based on search query, user filter, and date range
   const filteredStandups = useMemo(() => {
     return standups
       .filter(standup => {
-        const matchesSearch = searchQuery === '' || 
+        const matchesSearch = 
+          searchQuery === '' ||
           standup.yesterday.toLowerCase().includes(searchQuery.toLowerCase()) ||
           standup.today.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          standup.blockers?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          standup.comments?.toLowerCase().includes(searchQuery.toLowerCase());
-        
+          standup.blockers.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          standup.comments.toLowerCase().includes(searchQuery.toLowerCase());
+
         const matchesUser = userFilter === '' || standup.userId === userFilter;
-        
-        return matchesSearch && matchesUser;
+
+        const matchesDateRange = 
+          (!dateRange.startDate || new Date(standup.date) >= new Date(dateRange.startDate)) &&
+          (!dateRange.endDate || new Date(standup.date) <= new Date(dateRange.endDate));
+
+        return matchesSearch && matchesUser && matchesDateRange;
       })
       .sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [searchQuery, userFilter, standups]);
+  }, [standups, searchQuery, userFilter, dateRange]);
 
   const handleNewStandup = async (data: { yesterday: string; today: string; blockers: string; comments: string }) => {
     try {
@@ -263,98 +305,116 @@ export const Dashboard: React.FC = () => {
     );
   }
 
-  const backgroundPattern = theme === 'dark' ? patterns.dashboardDark : patterns.dashboard;
+  const patterns = {
+    light: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23cbd5e1' fill-opacity='0.8'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+    dark: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23374151' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900" style={backgroundPattern}>
-      {/* Header */}
-      <div className="bg-white/80 dark:bg-gray-800/80 shadow backdrop-blur-sm" style={backgroundPattern}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-3">
-              <ClipboardList className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Daily Standup Tracker</h1>
+    <div 
+      className="min-h-screen bg-gray-200 dark:bg-gray-900"
+      style={{ 
+        backgroundImage: `linear-gradient(to bottom, rgba(30, 41, 59, 0.05), rgba(30, 41, 59, 0.05)), ${theme === 'dark' ? patterns.dark : patterns.light}`,
+        backgroundSize: '60px 60px'
+      }}
+    >
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-7xl">
+        <div className="flex flex-col gap-6">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex items-center gap-3">
+              <ClipboardList className="w-8 h-8 text-blue-500" />
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Daily Standups</h1>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-4 w-full sm:w-auto">
               <ThemeToggle />
               <UserMenu />
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-8">
-          <StandupFilter
-            onSearchChange={setSearchQuery}
-            onUserFilterChange={setUserFilter}
-            searchQuery={searchQuery}
-            userFilter={userFilter}
-            users={users}
-          />
-          
-          <Button onClick={() => setIsNewModalOpen(true)} className="flex items-center">
-            <Plus className="w-5 h-5 mr-2" />
-            New Standup
-          </Button>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-4 rounded-lg bg-red-50 dark:bg-red-900/50">
-            <p className="text-sm text-red-700 dark:text-red-200">{error}</p>
+          {/* Stats Section */}
+          <div className="w-full">
+            <StatsCards standupStats={standupStats} users={users} />
           </div>
-        )}
 
-        {loading ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500 dark:text-gray-400 text-lg">Loading standups...</p>
+          {/* Filters and New Standup Button Section */}
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="w-full">
+                <StandupFilter
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  userFilter={userFilter}
+                  onUserFilterChange={setUserFilter}
+                  dateRange={dateRange}
+                  onDateRangeChange={(startDate, endDate) => setDateRange({ startDate, endDate })}
+                  users={users}
+                />
+              </div>
+              <div className="w-full sm:w-auto shrink-0">
+                <Button
+                  onClick={() => setIsNewModalOpen(true)}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2"
+                  variant="primary"
+                >
+                  <Plus className="w-5 h-5" />
+                  New Standup
+                </Button>
+              </div>
+            </div>
           </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredStandups.map(standup => (
+
+          {/* Standups Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            {loading ? (
+              <div className="col-span-full text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+              </div>
+            ) : error ? (
+              <div className="col-span-full text-center py-8 text-red-500">{error}</div>
+            ) : filteredStandups.length === 0 ? (
+              <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
+                No standups found
+              </div>
+            ) : (
+              filteredStandups.map((standup) => (
                 <StandupCard
                   key={standup.id}
                   standup={standup}
-                  onEdit={setEditingStandup}
+                  onEdit={() => setEditingStandup(standup)}
                   onDelete={handleDeleteStandup}
                 />
-              ))}
-            </div>
-
-            {filteredStandups.length === 0 && (
-              <div className="text-center py-12">
-                <p className="text-gray-500 dark:text-gray-400 text-lg">No standups found matching your criteria.</p>
-              </div>
+              ))
             )}
-          </>
-        )}
-
-        <Modal
-          isOpen={isNewModalOpen}
-          onClose={() => setIsNewModalOpen(false)}
-          title="New Daily Standup Tracker Entry"
-        >
-          <NewStandupForm
-            onSubmit={handleNewStandup}
-            onCancel={() => setIsNewModalOpen(false)}
-          />
-        </Modal>
-
-        <Modal
-          isOpen={!!editingStandup}
-          onClose={() => setEditingStandup(null)}
-          title="Edit Daily Standup Tracker Entry"
-        >
-          {editingStandup && (
-            <EditStandupForm
-              standup={editingStandup}
-              onSubmit={handleEditStandup}
-              onCancel={() => setEditingStandup(null)}
-            />
-          )}
-        </Modal>
+          </div>
+        </div>
       </div>
+
+      {/* Modals */}
+      <Modal
+        isOpen={isNewModalOpen}
+        onClose={() => setIsNewModalOpen(false)}
+        title="New Daily Standup Tracker Entry"
+      >
+        <NewStandupForm
+          onSubmit={handleNewStandup}
+          onCancel={() => setIsNewModalOpen(false)}
+        />
+      </Modal>
+
+      <Modal
+        isOpen={!!editingStandup}
+        onClose={() => setEditingStandup(null)}
+        title="Edit Daily Standup Tracker Entry"
+      >
+        {editingStandup && (
+          <EditStandupForm
+            standup={editingStandup}
+            onSubmit={handleEditStandup}
+            onCancel={() => setEditingStandup(null)}
+          />
+        )}
+      </Modal>
     </div>
   );
 };
